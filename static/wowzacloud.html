@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WHIP to Wowza Cloud</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+    header {
+      margin-bottom: 24px;
+    }
+    header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+    header p {
+      color: #86868b;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #86868b;
+      margin-bottom: 16px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #1d1d1f;
+      margin-bottom: 6px;
+    }
+    label .hint {
+      font-weight: 400;
+      color: #86868b;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      background: #fff;
+      color: #1d1d1f;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #0071e3;
+    }
+    input::placeholder {
+      color: #86868b;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: #0071e3;
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #0077ed;
+    }
+    .btn-secondary {
+      background: #e8e8ed;
+      color: #1d1d1f;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #d2d2d7;
+    }
+    video {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+      margin-top: 16px;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #f5f5f7;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #86868b;
+    }
+    .status-dot.connected { background: #34c759; }
+    .status-dot.connecting { background: #ff9f0a; }
+    .status-dot.error { background: #ff3b30; }
+    .log-card {
+      margin-top: 20px;
+    }
+    .log-area {
+      font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+      font-size: 12px;
+      background: #1d1d1f;
+      color: #f5f5f7;
+      border-radius: 8px;
+      padding: 12px;
+      height: 180px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .log-area .info { color: #86868b; }
+    .log-area .success { color: #34c759; }
+    .log-area .warn { color: #ff9f0a; }
+    .log-area .error { color: #ff3b30; }
+    .playback-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e8e8ed;
+    }
+    .playback-section h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1d1d1f;
+      margin-bottom: 12px;
+    }
+    #hlsPlayer {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+    }
+    .camera-select-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .camera-select-row .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+    .camera-select-row button {
+      flex: none;
+      padding: 10px 14px;
+      margin-bottom: 0;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/ovenlivekit@latest/dist/OvenLiveKit.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>WHIP to Wowza Cloud</h1>
+    <p>WebRTC publish gateway</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Connection</h2>
+
+      <div class="form-group">
+        <label>Host Server <span class="hint">(or SDP URL)</span></label>
+        <input type="text" id="hostServer" placeholder="c334d88b12ab.entrypoint.cloud.wowza.com">
+      </div>
+
+      <div class="form-group">
+        <label>Application</label>
+        <input type="text" id="appName" placeholder="app-xg553sT7">
+      </div>
+
+      <div class="form-group">
+        <label>Stream Name</label>
+        <input type="text" id="streamName" placeholder="ckp3aDVL">
+      </div>
+
+      <div class="form-group">
+        <label>Codec</label>
+        <select id="codecSelect">
+          <option value="H264" selected>H.264</option>
+          <option value="VP8">VP8</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>HLS Playback URL <span class="hint">(optional)</span></label>
+        <input type="text" id="hlsUrl" placeholder="https://...entrypoint.cloud.wowza.com/.../playlist.m3u8">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Camera</h2>
+
+      <div class="camera-select-row">
+        <div class="form-group">
+          <label>Device</label>
+          <select id="cameraSelect"></select>
+        </div>
+        <button type="button" class="btn-secondary" id="refreshBtn" title="Refresh devices">&#8635;</button>
+      </div>
+
+      <div class="form-row" style="margin-top: 14px;">
+        <div class="form-group">
+          <label>Resolution</label>
+          <select id="resolutionSelect">
+            <option value="1280x720" selected>1280x720</option>
+            <option value="1920x1080">1920x1080</option>
+            <option value="640x360">640x360</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frame Rate</label>
+          <select id="fpsSelect">
+            <option value="30" selected>30 fps</option>
+            <option value="24">24 fps</option>
+            <option value="15">15 fps</option>
+          </select>
+        </div>
+      </div>
+
+      <video id="preview" playsinline autoplay muted></video>
+
+      <div class="btn-row">
+        <button type="button" class="btn-primary" id="startBtn">Start Publishing</button>
+        <button type="button" class="btn-secondary" id="stopBtn" disabled>Stop</button>
+      </div>
+
+      <div class="status-bar">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+
+      <div class="playback-section" id="playbackSection" style="display: none;">
+        <h3>HLS Playback</h3>
+        <video id="hlsPlayer" controls playsinline></video>
+      </div>
+    </div>
+  </div>
+
+  <div class="card log-card">
+    <h2>Log</h2>
+    <div class="log-area" id="logArea"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // Storage keys
+  const STORAGE_KEYS = {
+    hostServer: 'whip_hostServer',
+    appName: 'whip_appName',
+    streamName: 'whip_streamName',
+    codec: 'whip_codec',
+    hlsUrl: 'whip_hlsUrl',
+    resolution: 'whip_resolution',
+    fps: 'whip_fps'
+  };
+
+  // DOM elements
+  const $ = id => document.getElementById(id);
+  const hostServerEl = $('hostServer');
+  const appNameEl = $('appName');
+  const streamNameEl = $('streamName');
+  const codecSelectEl = $('codecSelect');
+  const hlsUrlEl = $('hlsUrl');
+  const cameraSelectEl = $('cameraSelect');
+  const resolutionSelectEl = $('resolutionSelect');
+  const fpsSelectEl = $('fpsSelect');
+  const previewEl = $('preview');
+  const startBtn = $('startBtn');
+  const stopBtn = $('stopBtn');
+  const refreshBtn = $('refreshBtn');
+  const statusDot = $('statusDot');
+  const statusText = $('statusText');
+  const logArea = $('logArea');
+  const playbackSection = $('playbackSection');
+  const hlsPlayer = $('hlsPlayer');
+
+  let ovenLivekit = null;
+  let currentStream = null;
+  let hlsInstance = null;
+  let isPublishing = false;
+
+  // Logging
+  function log(msg, level = 'info') {
+    const time = new Date().toLocaleTimeString();
+    const div = document.createElement('div');
+    div.className = level;
+    div.textContent = `[${time}] ${msg}`;
+    logArea.appendChild(div);
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+
+  // Status updates
+  function setStatus(text, state) {
+    statusText.textContent = text;
+    statusDot.className = 'status-dot ' + (state || '');
+  }
+
+  // LocalStorage helpers
+  function saveToStorage() {
+    localStorage.setItem(STORAGE_KEYS.hostServer, hostServerEl.value);
+    localStorage.setItem(STORAGE_KEYS.appName, appNameEl.value);
+    localStorage.setItem(STORAGE_KEYS.streamName, streamNameEl.value);
+    localStorage.setItem(STORAGE_KEYS.codec, codecSelectEl.value);
+    localStorage.setItem(STORAGE_KEYS.hlsUrl, hlsUrlEl.value);
+    localStorage.setItem(STORAGE_KEYS.resolution, resolutionSelectEl.value);
+    localStorage.setItem(STORAGE_KEYS.fps, fpsSelectEl.value);
+  }
+
+  function loadFromStorage() {
+    hostServerEl.value = localStorage.getItem(STORAGE_KEYS.hostServer) || '';
+    appNameEl.value = localStorage.getItem(STORAGE_KEYS.appName) || '';
+    streamNameEl.value = localStorage.getItem(STORAGE_KEYS.streamName) || '';
+    codecSelectEl.value = localStorage.getItem(STORAGE_KEYS.codec) || 'H264';
+    hlsUrlEl.value = localStorage.getItem(STORAGE_KEYS.hlsUrl) || '';
+    resolutionSelectEl.value = localStorage.getItem(STORAGE_KEYS.resolution) || '1280x720';
+    fpsSelectEl.value = localStorage.getItem(STORAGE_KEYS.fps) || '30';
+  }
+
+  // Save on input change
+  [hostServerEl, appNameEl, streamNameEl, codecSelectEl, hlsUrlEl, resolutionSelectEl, fpsSelectEl].forEach(el => {
+    el.addEventListener('change', saveToStorage);
+    el.addEventListener('input', saveToStorage);
+  });
+
+  // Parse host from various input formats
+  function parseWowzaHost(input) {
+    if (!input) return '';
+    input = input.trim();
+
+    // If it's a full URL, extract the hostname prefix
+    // wss://c334d88b12ab.entrypoint.cloud.wowza.com/webrtc-session.json -> c334d88b12ab
+    // c334d88b12ab.entrypoint.cloud.wowza.com -> c334d88b12ab
+    // c334d88b12ab -> c334d88b12ab
+
+    let hostname = input;
+
+    // Remove protocol
+    if (hostname.startsWith('wss://') || hostname.startsWith('https://')) {
+      hostname = hostname.replace(/^wss?:\/\//, '').replace(/^https?:\/\//, '');
+    }
+
+    // Remove path
+    hostname = hostname.split('/')[0];
+
+    // Extract prefix from full hostname
+    if (hostname.includes('.entrypoint.cloud.wowza.com')) {
+      hostname = hostname.split('.entrypoint.cloud.wowza.com')[0];
+    }
+
+    return hostname;
+  }
+
+  // Build WHIP URL
+  function buildWhipUrl() {
+    const host = parseWowzaHost(hostServerEl.value);
+    const app = appNameEl.value.trim();
+    const codec = codecSelectEl.value;
+
+    if (!host || !app) {
+      return null;
+    }
+
+    const endpoint = codec === 'VP8' ? 'cloud-vp8' : 'cloud';
+    return `${window.location.origin}/api/${endpoint}/${host}/${app}`;
+  }
+
+  // Populate camera list
+  async function populateCameras() {
+    try {
+      const devices = await OvenLiveKit.getDevices('both');
+      const cameras = (devices && devices.videoinput) || [];
+      cameraSelectEl.innerHTML = '';
+
+      if (cameras.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No cameras found';
+        cameraSelectEl.appendChild(opt);
+      } else {
+        cameras.forEach((d, i) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Camera ${i + 1}`;
+          cameraSelectEl.appendChild(opt);
+        });
+      }
+    } catch (e) {
+      log(`Failed to get devices: ${e.message}`, 'error');
+    }
+  }
+
+  // Create OvenLiveKit instance
+  function createKit() {
+    return OvenLiveKit.create({
+      callbacks: {
+        error: (err) => {
+          const msg = err && err.message ? err.message : String(err);
+          log(`Error: ${msg}`, 'error');
+          setStatus('Error', 'error');
+        },
+        connected: () => {
+          log('Connected to server', 'success');
+          setStatus('Connected', 'connected');
+          startHlsPlayback();
+        },
+        connectionClosed: (type) => {
+          log(`Connection closed${type ? ` (${type})` : ''}`, 'warn');
+          if (isPublishing) {
+            stopPublishing();
+          }
+        },
+        iceStateChange: (event) => {
+          const state = typeof event === 'string'
+            ? event
+            : (event?.target?.iceConnectionState || event?.iceConnectionState);
+          if (state) {
+            log(`ICE: ${state}`, state === 'failed' ? 'error' : 'info');
+            if (state === 'checking' || state === 'new') {
+              setStatus('Connecting...', 'connecting');
+            } else if (state === 'connected' || state === 'completed') {
+              setStatus('Connected', 'connected');
+            } else if (state === 'failed' || state === 'disconnected') {
+              setStatus('Disconnected', 'error');
+              if (isPublishing) {
+                stopPublishing();
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Get media constraints
+  function getConstraints() {
+    const [w, h] = resolutionSelectEl.value.split('x').map(Number);
+    const fps = parseInt(fpsSelectEl.value, 10);
+    const deviceId = cameraSelectEl.value;
+
+    const video = {
+      width: { ideal: w },
+      height: { ideal: h },
+      frameRate: { ideal: fps }
+    };
+
+    if (deviceId) {
+      video.deviceId = { exact: deviceId };
+    }
+
+    return { video, audio: true };
+  }
+
+  // Start publishing
+  async function startPublishing() {
+    const whipUrl = buildWhipUrl();
+    if (!whipUrl) {
+      log('Please fill in Host Server and Application fields', 'error');
+      return;
+    }
+
+    const streamName = streamNameEl.value.trim();
+    if (!streamName) {
+      log('Please fill in Stream Name field', 'error');
+      return;
+    }
+
+    try {
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      isPublishing = true;
+      setStatus('Starting...', 'connecting');
+
+      // Clean up previous
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
+      }
+      if (ovenLivekit) {
+        try { ovenLivekit.remove(); } catch (_) {}
+        ovenLivekit = null;
+      }
+
+      // Create new kit
+      ovenLivekit = createKit();
+      ovenLivekit.attachMedia(previewEl);
+
+      // Get media
+      const constraints = getConstraints();
+      log(`Requesting media: ${resolutionSelectEl.value}@${fpsSelectEl.value}fps`);
+      currentStream = await ovenLivekit.getUserMedia(constraints);
+      await ovenLivekit.setMediaStream(currentStream);
+      previewEl.srcObject = currentStream;
+
+      const vt = currentStream.getVideoTracks()[0];
+      const at = currentStream.getAudioTracks()[0];
+      log(`Media ready: video=${vt?.readyState || 'none'}, audio=${at?.readyState || 'none'}`, 'success');
+
+      // Start streaming
+      const codec = codecSelectEl.value;
+      log(`Publishing to ${whipUrl} (${codec})`);
+
+      await ovenLivekit.startStreaming(whipUrl, {
+        httpHeaders: { 'Authorization': `Bearer ${streamName}` },
+        preferredVideoFormat: codec,
+        maxVideoBitrate: 2500,
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      stopBtn.disabled = false;
+      log('Publish started, waiting for connection...', 'info');
+    } catch (e) {
+      log(`Start failed: ${e.message}`, 'error');
+      setStatus('Failed', 'error');
+      isPublishing = false;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  }
+
+  // Stop publishing
+  function stopPublishing() {
+    isPublishing = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+    previewEl.srcObject = null;
+
+    if (ovenLivekit) {
+      try { ovenLivekit.stopStreaming(); } catch (_) {}
+      try { ovenLivekit.remove(); } catch (_) {}
+      ovenLivekit = null;
+    }
+
+    stopHlsPlayback();
+    setStatus('Stopped', '');
+    log('Publishing stopped', 'warn');
+  }
+
+  // HLS playback with retry
+  const HLS_RETRY_COUNT = 15;
+  const HLS_RETRY_DELAY_MS = 1000;
+
+  async function startHlsPlayback() {
+    const hlsUrl = hlsUrlEl.value.trim();
+    if (!hlsUrl) {
+      log('No HLS URL configured, skipping playback');
+      return;
+    }
+
+    playbackSection.style.display = 'block';
+    log(`Waiting for HLS stream to be available...`);
+
+    // Retry loop to wait for HLS to become available
+    let available = false;
+    for (let i = 1; i <= HLS_RETRY_COUNT; i++) {
+      if (!isPublishing) return; // Stop if user stopped publishing
+
+      try {
+        const resp = await fetch(hlsUrl, { method: 'HEAD', mode: 'cors' });
+        if (resp.ok) {
+          available = true;
+          log('HLS playlist available', 'success');
+          break;
+        }
+      } catch (e) {
+        // Network error or CORS - continue retrying
+      }
+
+      if (i < HLS_RETRY_COUNT) {
+        log(`HLS not ready (${i}/${HLS_RETRY_COUNT}), retrying...`, 'warn');
+        await new Promise(r => setTimeout(r, HLS_RETRY_DELAY_MS));
+      }
+    }
+
+    if (!available) {
+      log('HLS stream not available after retries', 'error');
+      return;
+    }
+
+    if (!isPublishing) return;
+
+    log(`Starting HLS playback: ${hlsUrl}`);
+
+    if (Hls.isSupported()) {
+      hlsInstance = new Hls({
+        maxBufferLength: 10,
+        maxMaxBufferLength: 30
+      });
+      hlsInstance.loadSource(hlsUrl);
+      hlsInstance.attachMedia(hlsPlayer);
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        hlsPlayer.play().catch(() => {});
+        log('HLS playback started', 'success');
+      });
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          log(`HLS error: ${data.type}`, 'error');
+        }
+      });
+    } else if (hlsPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+      hlsPlayer.src = hlsUrl;
+      hlsPlayer.addEventListener('loadedmetadata', () => {
+        hlsPlayer.play().catch(() => {});
+      });
+    } else {
+      log('HLS not supported in this browser', 'error');
+    }
+  }
+
+  function stopHlsPlayback() {
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
+    }
+    hlsPlayer.src = '';
+    playbackSection.style.display = 'none';
+  }
+
+  // Event listeners
+  startBtn.addEventListener('click', startPublishing);
+  stopBtn.addEventListener('click', stopPublishing);
+  refreshBtn.addEventListener('click', populateCameras);
+
+  window.addEventListener('beforeunload', () => {
+    if (isPublishing) {
+      stopPublishing();
+    }
+  });
+
+  // Init
+  loadFromStorage();
+  populateCameras();
+  log('Ready. Fill in connection details and click Start Publishing.');
+})();
+</script>
+</body>
+</html>
