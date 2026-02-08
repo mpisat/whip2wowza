@@ -151,6 +151,8 @@ Lock the gateway to a single Wowza host at startup:
 | `--allowed-hosts` | `ALLOWED_HOSTS` | `*` | Host allowlist for dynamic mode |
 | `--ice-udp-mux-port` | `ICE_UDP_MUX_PORT` | `0` | Single UDP port for ICE (0 = use range) |
 | `--ice-tcp-mux-port` | `ICE_TCP_MUX_PORT` | `0` | Single TCP port for ICE (0 = disabled) |
+| `--enable-ipv6` | `ENABLE_IPV6` | `false` | Enable IPv6 ICE candidates on WHIP ingest side |
+| `--nat-1to1-ip` | `NAT_1TO1_IP` | - | Comma-separated public IPs for ICE host candidates (must include IPv4 for Wowza relay) |
 | `--h264-repacketize` | `H264_REPACKETIZE` | `auto` | NAL repacketization: `off`, `on`, `auto` |
 | `--max-sessions` | `MAX_SESSIONS` | `0` | Max concurrent sessions (0 = unlimited) |
 | `--video-ready-timeout` | `VIDEO_READY_TIMEOUT` | `15s` | Timeout for first video packet |
@@ -161,15 +163,19 @@ Lock the gateway to a single Wowza host at startup:
 | `--verbose` | `VERBOSE` | `false` | Debug logging |
 | `--insecure-tls` | `INSECURE_TLS` | `false` | Skip TLS verification |
 
-Environment-only:
+Environment variables:
 
 | Env | Default | Description |
 |-----|---------|-------------|
 | `UDP_PORT_MIN` | `10000` | Start of UDP port range |
 | `UDP_PORT_MAX` | `12000` | End of UDP port range |
 | `LOG_FORMAT` | `auto` | `text`, `json`, or `auto` (text for TTY) |
+| `ENABLE_IPV6` | `false` | Enable IPv6 ICE candidates on WHIP ingest side |
+| `NAT_1TO1_IP` | - | Comma-separated public IPs for ICE host candidates (must include IPv4 for Wowza relay) |
 
 ## Networking
+
+IPv6 affects WHIP ingest ICE only; Wowza relay candidates remain IPv4 after SDP filtering.
 
 **Port range mode** (default):
 - Uses UDP ports 10000-12000

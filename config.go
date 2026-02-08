@@ -39,15 +39,18 @@ type Config struct {
 	PLIBurstMinGap      time.Duration
 	SRInterval          time.Duration
 
-	ReadyTimeout  time.Duration
-	MaxSessions   int
-	ICEUDPMuxPort int
-	ICETCPMuxPort int
-	UDPPortMin    uint16
-	UDPPortMax    uint16
-	RetryAttempts int
+	ReadyTimeout   time.Duration
+	MaxSessions    int
+	ICEUDPMuxPort  int
+	ICETCPMuxPort  int
+	UDPPortMin     uint16
+	UDPPortMax     uint16
+	RetryAttempts  int
 	RetryBaseDelay time.Duration
 	RetryMaxDelay  time.Duration
+
+	EnableIPv6 bool
+	NAT1To1IP  string
 
 	AllowedHosts string // Comma-separated list, supports wildcards like *.wowza.com
 }
@@ -67,15 +70,17 @@ func NewConfig() *Config {
 		PLIBurstInterval:    250 * time.Millisecond,
 		PLIBurstMinGap:      2 * time.Second,
 		SRInterval:          envDuration("SR_INTERVAL", 5*time.Second),
-		ReadyTimeout:  envDuration("VIDEO_READY_TIMEOUT", 15*time.Second),
-		MaxSessions:   envInt("MAX_SESSIONS", 0),
-		ICEUDPMuxPort: envInt("ICE_UDP_MUX_PORT", 0),
-		ICETCPMuxPort: envInt("ICE_TCP_MUX_PORT", 0),
-		UDPPortMin:    uint16(envInt("UDP_PORT_MIN", 10000)),
-		UDPPortMax:    uint16(envInt("UDP_PORT_MAX", 12000)),
-		RetryAttempts: 3,
+		ReadyTimeout:        envDuration("VIDEO_READY_TIMEOUT", 15*time.Second),
+		MaxSessions:         envInt("MAX_SESSIONS", 0),
+		ICEUDPMuxPort:       envInt("ICE_UDP_MUX_PORT", 0),
+		ICETCPMuxPort:       envInt("ICE_TCP_MUX_PORT", 0),
+		UDPPortMin:          uint16(envInt("UDP_PORT_MIN", 10000)),
+		UDPPortMax:          uint16(envInt("UDP_PORT_MAX", 12000)),
+		RetryAttempts:       3,
 		RetryBaseDelay:      time.Second,
 		RetryMaxDelay:       8 * time.Second,
+		EnableIPv6:          envBool("ENABLE_IPV6", false),
+		NAT1To1IP:           env("NAT_1TO1_IP", ""),
 		AllowedHosts:        env("ALLOWED_HOSTS", ""),
 	}
 
@@ -92,6 +97,8 @@ func NewConfig() *Config {
 	flag.DurationVar(&c.SRInterval, "sr-interval", c.SRInterval, "RTCP Sender Report interval (env: SR_INTERVAL)")
 	flag.IntVar(&c.ICEUDPMuxPort, "ice-udp-mux-port", c.ICEUDPMuxPort, "Single UDP port for ICE, 0=use range (env: ICE_UDP_MUX_PORT)")
 	flag.IntVar(&c.ICETCPMuxPort, "ice-tcp-mux-port", c.ICETCPMuxPort, "Single TCP port for ICE, 0=disabled (env: ICE_TCP_MUX_PORT)")
+	flag.BoolVar(&c.EnableIPv6, "enable-ipv6", c.EnableIPv6, "Enable IPv6 ICE candidates on WHIP ingest side (env: ENABLE_IPV6)")
+	flag.StringVar(&c.NAT1To1IP, "nat-1to1-ip", c.NAT1To1IP, "Comma-separated public IPs for ICE host candidates (env: NAT_1TO1_IP)")
 	flag.StringVar(&c.AllowedHosts, "allowed-hosts", c.AllowedHosts, "Allowed Wowza hosts, comma-separated, supports wildcards (env: ALLOWED_HOSTS)")
 
 	return c
@@ -197,13 +204,29 @@ func (c *Config) WebRTCAPI() (*webrtc.API, error) {
 	settings := webrtc.SettingEngine{}
 	settings.SetICETimeouts(30*time.Second, 30*time.Second, time.Second)
 
+	nat1To1IPs, hasIPv4NAT, err := parseNAT1To1IPs(c.NAT1To1IP)
+	if err != nil {
+		return nil, err
+	}
+	if len(nat1To1IPs) > 0 {
+		if !hasIPv4NAT {
+			return nil, fmt.Errorf("NAT_1TO1_IP must include at least one IPv4 address for Wowza relay")
+		}
+		settings.SetNAT1To1IPs(nat1To1IPs, webrtc.ICECandidateTypeHost)
+	}
+
 	// ICE UDP configuration
 	if c.ICEUDPMuxPort > 0 {
 		// Single UDP port mode - all connections share one socket
 		udpAddr := &net.UDPAddr{Port: c.ICEUDPMuxPort}
-		udpConn, err := net.ListenUDP("udp4", udpAddr)
+		network := "udp4"
+		if c.EnableIPv6 {
+			network = "udp"
+			udpAddr = &net.UDPAddr{IP: net.IPv6zero, Port: c.ICEUDPMuxPort}
+		}
+		udpConn, err := net.ListenUDP(network, udpAddr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to listen on UDP port %d: %w", c.ICEUDPMuxPort, err)
+			return nil, fmt.Errorf("failed to listen on %s port %d: %w", network, c.ICEUDPMuxPort, err)
 		}
 		udpMux := ice.NewUDPMuxDefault(ice.UDPMuxParams{UDPConn: udpConn})
 		settings.SetICEUDPMux(udpMux)
@@ -215,9 +238,14 @@ func (c *Config) WebRTCAPI() (*webrtc.API, error) {
 	// ICE TCP configuration (optional)
 	if c.ICETCPMuxPort > 0 {
 		tcpAddr := &net.TCPAddr{Port: c.ICETCPMuxPort}
-		tcpListener, err := net.ListenTCP("tcp4", tcpAddr)
+		network := "tcp4"
+		if c.EnableIPv6 {
+			network = "tcp"
+			tcpAddr = &net.TCPAddr{IP: net.IPv6zero, Port: c.ICETCPMuxPort}
+		}
+		tcpListener, err := net.ListenTCP(network, tcpAddr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to listen on TCP port %d: %w", c.ICETCPMuxPort, err)
+			return nil, fmt.Errorf("failed to listen on %s port %d: %w", network, c.ICETCPMuxPort, err)
 		}
 		tcpMux := ice.NewTCPMuxDefault(ice.TCPMuxParams{Listener: tcpListener})
 		settings.SetICETCPMux(tcpMux)
@@ -225,10 +253,14 @@ func (c *Config) WebRTCAPI() (*webrtc.API, error) {
 
 	// Enable both UDP and TCP for Wowza Cloud compatibility
 	// TCP is needed for outbound connections to Wowza (port 1935)
-	settings.SetNetworkTypes([]webrtc.NetworkType{
+	networkTypes := []webrtc.NetworkType{
 		webrtc.NetworkTypeUDP4,
 		webrtc.NetworkTypeTCP4,
-	})
+	}
+	if c.EnableIPv6 {
+		networkTypes = append(networkTypes, webrtc.NetworkTypeUDP6, webrtc.NetworkTypeTCP6)
+	}
+	settings.SetNetworkTypes(networkTypes)
 
 	return webrtc.NewAPI(webrtc.WithMediaEngine(media), webrtc.WithSettingEngine(settings)), nil
 }
@@ -274,4 +306,35 @@ func envDuration(key string, def time.Duration) time.Duration {
 		}
 	}
 	return def
+}
+
+func parseNAT1To1IPs(raw string) ([]string, bool, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, false, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	ips := make([]string, 0, len(parts))
+	hasIPv4 := false
+	for _, part := range parts {
+		ipStr := strings.TrimSpace(part)
+		if ipStr == "" {
+			continue
+		}
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			return nil, false, fmt.Errorf("invalid NAT_1TO1_IP value: %q", ipStr)
+		}
+		if ip.To4() != nil {
+			hasIPv4 = true
+		}
+		ips = append(ips, ipStr)
+	}
+
+	if len(ips) == 0 {
+		return nil, false, nil
+	}
+
+	return ips, hasIPv4, nil
 }
